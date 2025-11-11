@@ -35,6 +35,16 @@ types:
       MaxRows?:
         type: integer
         description: Maximum number of rows to return.
+  OrderUpdateResponse:
+    description: Result of updating an order integration record.
+    type: object
+    properties:
+      ttOrderInt:
+        type: object
+        properties:
+          UpdateStatus:
+            type: string
+            description: Outcome of the update operation.
 
 /orders:
   get:
@@ -68,4 +78,25 @@ types:
                   SalesOrder: SO67890
                   ExclDomainList: DOMC
                   MaxRows: 50
+  patch:
+    description: Update an existing order integration record.
+    body:
+      application/json:
+        type: OrderIntInput
+        example:
+          TargetApp: QAD
+          Domain: DOM1
+          OrderStatus: InProgress
+          SalesOrder: SO12345
+          ExclDomainList: DOMA,DOMB
+          MaxRows: 1
+    responses:
+      200:
+        description: Order record updated successfully.
+        body:
+          application/json:
+            type: OrderUpdateResponse
+            example:
+              ttOrderInt:
+                UpdateStatus: Record updated successfully
 
