@@ -1,1 +1,71 @@
+#%RAML 1.0
+title: s-qad Orders API
+version: v1
+baseUri: https://api.example.com/s-qad
+protocols: [ HTTPS ]
+mediaType: application/json
+
+types:
+  DsOrderIntQueryInput:
+    description: Collection of order integration records converted from the legacy XML schema.
+    type: object
+    properties:
+      ttOrderIntInput?:
+        description: Optional collection of order integration rows.
+        type: OrderIntInput[]
+  OrderIntInput:
+    description: Order integration record derived from the TtOrderIntInputType definition.
+    type: object
+    properties:
+      TargetApp?:
+        type: string
+        description: Target application identifier.
+      Domain?:
+        type: string
+        description: Business domain code.
+      OrderStatus?:
+        type: string
+        description: Current status of the sales order.
+      SalesOrder?:
+        type: string
+        description: Sales order identifier.
+      ExclDomainList?:
+        type: string
+        description: Comma-delimited list of domains to exclude.
+      MaxRows?:
+        type: integer
+        description: Maximum number of rows to return.
+
+/orders:
+  get:
+    description: Retrieve order integration records, optionally filtered by specific sales orders.
+    queryParameters:
+      orders?:
+        displayName: Orders
+        description: Optional list of sales order identifiers used to filter the results.
+        type: string[]
+        repeat: true
+        example:
+          - SO12345
+          - SO67890
+    responses:
+      200:
+        description: Order records retrieved successfully.
+        body:
+          application/json:
+            type: DsOrderIntQueryInput
+            example:
+              ttOrderIntInput:
+                - TargetApp: QAD
+                  Domain: DOM1
+                  OrderStatus: Open
+                  SalesOrder: SO12345
+                  ExclDomainList: DOMA,DOMB
+                  MaxRows: 100
+                - TargetApp: QAD
+                  Domain: DOM2
+                  OrderStatus: Closed
+                  SalesOrder: SO67890
+                  ExclDomainList: DOMC
+                  MaxRows: 50
 
