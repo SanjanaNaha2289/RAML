@@ -45,6 +45,61 @@ types:
           updateStatus:
             type: string
             description: Outcome of the update operation.
+  productLineQueryRequest:
+    description: Request payload for fetching product line metadata.
+    type: object
+    properties:
+      queryRequests?:
+        description: Optional collection of query request entries.
+        type: queryServiceRequest[]
+  queryServiceRequest:
+    description: Query request parameters mapped from the QueryServiceRequestType definition.
+    type: object
+    properties:
+      sourceApplication?:
+        type: string
+        description: Source application identifier.
+      profile?:
+        type: string
+        description: Profile name applied to the query.
+      filter?:
+        type: string
+        description: Filter expression limiting the response set.
+      maxRows?:
+        type: integer
+        description: Maximum number of rows to return.
+      ignoreBoFilter?:
+        type: boolean
+        description: Flag indicating whether to ignore business object filters.
+      ignoreBoInnerJoin?:
+        type: boolean
+        description: Flag indicating whether to ignore business object inner joins.
+  productLineQueryResponse:
+    description: Response payload containing product line metadata.
+    type: object
+    properties:
+      codeMasters?:
+        description: Collection of product line code master records.
+        type: codeMaster[]
+  codeMaster:
+    description: Code master record derived from the CodeMasterResponseType definition.
+    type: object
+    properties:
+      codeCmmt?:
+        type: string
+        description: Code comment.
+      codeDesc?:
+        type: string
+        description: Code description.
+      codeDomain?:
+        type: string
+        description: Domain identifier for the code.
+      codeFldname?:
+        type: string
+        description: Field name to which the code applies.
+      codeValue?:
+        type: string
+        description: Value for the code entry.
 
 /orders:
   get:
@@ -99,4 +154,31 @@ types:
             example:
               orderUpdate:
                 updateStatus: Record updated successfully
+/productLines:
+  post:
+    description: Fetch product lines
+    body:
+      application/json:
+        type: productLineQueryRequest
+        example:
+          queryRequests:
+            - sourceApplication: QAD
+              profile: default
+              filter: domain eq "PL"
+              maxRows: 100
+              ignoreBoFilter: false
+              ignoreBoInnerJoin: true
+    responses:
+      200:
+        description: Product line metadata retrieved successfully.
+        body:
+          application/json:
+            type: productLineQueryResponse
+            example:
+              codeMasters:
+                - codeCmmt: Product line comment
+                  codeDesc: Electronics
+                  codeDomain: PL
+                  codeFldname: productLine
+                  codeValue: ELEC
 
