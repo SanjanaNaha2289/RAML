@@ -6,43 +6,43 @@ protocols: [ HTTPS ]
 mediaType: application/json
 
 types:
-  DsOrderIntQueryInput:
+  orderQueryResponse:
     description: Collection of order integration records converted from the legacy XML schema.
     type: object
     properties:
-      ttOrderIntInput?:
+      orderRecords?:
         description: Optional collection of order integration rows.
-        type: OrderIntInput[]
-  OrderIntInput:
+        type: orderRecord[]
+  orderRecord:
     description: Order integration record derived from the TtOrderIntInputType definition.
     type: object
     properties:
-      TargetApp?:
+      targetApp?:
         type: string
         description: Target application identifier.
-      Domain?:
+      domain?:
         type: string
         description: Business domain code.
-      OrderStatus?:
+      orderStatus?:
         type: string
         description: Current status of the sales order.
-      SalesOrder?:
+      salesOrder?:
         type: string
         description: Sales order identifier.
-      ExclDomainList?:
+      exclDomainList?:
         type: string
         description: Comma-delimited list of domains to exclude.
-      MaxRows?:
+      maxRows?:
         type: integer
         description: Maximum number of rows to return.
-  OrderUpdateResponse:
+  orderUpdateResponse:
     description: Result of updating an order integration record.
     type: object
     properties:
-      ttOrderInt:
+      orderUpdate:
         type: object
         properties:
-          UpdateStatus:
+          updateStatus:
             type: string
             description: Outcome of the update operation.
 
@@ -63,40 +63,40 @@ types:
         description: Order records retrieved successfully.
         body:
           application/json:
-            type: DsOrderIntQueryInput
+            type: orderQueryResponse
             example:
-              ttOrderIntInput:
-                - TargetApp: QAD
-                  Domain: DOM1
-                  OrderStatus: Open
-                  SalesOrder: SO12345
-                  ExclDomainList: DOMA,DOMB
-                  MaxRows: 100
-                - TargetApp: QAD
-                  Domain: DOM2
-                  OrderStatus: Closed
-                  SalesOrder: SO67890
-                  ExclDomainList: DOMC
-                  MaxRows: 50
+              orderRecords:
+                - targetApp: QAD
+                  domain: DOM1
+                  orderStatus: Open
+                  salesOrder: SO12345
+                  exclDomainList: DOMA,DOMB
+                  maxRows: 100
+                - targetApp: QAD
+                  domain: DOM2
+                  orderStatus: Closed
+                  salesOrder: SO67890
+                  exclDomainList: DOMC
+                  maxRows: 50
   patch:
     description: Update an existing order integration record.
     body:
       application/json:
-        type: OrderIntInput
+        type: orderRecord
         example:
-          TargetApp: QAD
-          Domain: DOM1
-          OrderStatus: InProgress
-          SalesOrder: SO12345
-          ExclDomainList: DOMA,DOMB
-          MaxRows: 1
+          targetApp: QAD
+          domain: DOM1
+          orderStatus: InProgress
+          salesOrder: SO12345
+          exclDomainList: DOMA,DOMB
+          maxRows: 1
     responses:
       200:
         description: Order record updated successfully.
         body:
           application/json:
-            type: OrderUpdateResponse
+            type: orderUpdateResponse
             example:
-              ttOrderInt:
-                UpdateStatus: Record updated successfully
+              orderUpdate:
+                updateStatus: Record updated successfully
 
