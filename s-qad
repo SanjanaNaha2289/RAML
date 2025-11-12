@@ -421,6 +421,31 @@ types:
                   salesOrder: SO67890
                   exclDomainList: DOMC
                   maxRows: 50
+  /orderItems:
+    get:
+      description: Retrieve order items for a specific sales order.
+      queryParameters:
+        orderNumber:
+          displayName: Order Number
+          description: Identifier of the sales order whose items are requested.
+          type: string
+          required: true
+      responses:
+        200:
+          description: Order items retrieved successfully.
+          body:
+            application/json:
+              type: orderQueryResponse
+              example:
+                orderRecords:
+                  - businessLine: Progress
+                    targetApp: ORA
+                    domain: USA
+                    entity: "100"
+                    salesOrder: M1152602
+                    orderStatus: SENT
+                    billingFrequency: Once
+                    orderOid: 202105031344991719.0009
   patch:
     description: Update an existing order integration record.
     body:
