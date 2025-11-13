@@ -1,0 +1,452 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+      http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+      http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+      http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <configuration-properties file="config.properties" doc:name="Configuration properties"/>
+
+    <http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config">
+        <http:listener-connection host="${http.listener.host}" port="${http.listener.port}" basePath="/s-qad"/>
+    </http:listener-config>
+
+    <http:request-config name="SOAP_HTTP_Request" doc:name="SOAP HTTP Request">
+        <http:request-connection protocol="${soap.protocol}" host="${soap.host}" port="${soap.port}">
+            <http:authentication>
+                <http:basic-authentication username="${soap.username}" password="${soap.password}"/>
+            </http:authentication>
+        </http:request-connection>
+    </http:request-config>
+
+    <flow name="s-qad-orders-api-main">
+        <http:listener doc:name="HTTP Listener" config-ref="HTTP_Listener_config" path="/*"/>
+        <set-variable variableName="resourcePath" value="#[attributes.requestPath]" doc:name="Capture resource path"/>
+        <set-variable variableName="httpMethod" value="#[attributes.method]" doc:name="Capture HTTP method"/>
+        <set-variable variableName="responseStatus" value="200" doc:name="Default status code"/>
+        <choice doc:name="Route based on method and path">
+            <when expression="#[vars.httpMethod == 'GET' and vars.resourcePath == '/orders']">
+                <flow-ref name="get-orders-subflow" doc:name="Route to GET /orders"/>
+            </when>
+            <when expression="#[vars.httpMethod == 'PATCH' and vars.resourcePath == '/orders']">
+                <flow-ref name="patch-orders-subflow" doc:name="Route to PATCH /orders"/>
+            </when>
+            <when expression="#[vars.httpMethod == 'GET' and vars.resourcePath == '/orderItems']">
+                <flow-ref name="get-order-items-subflow" doc:name="Route to GET /orderItems"/>
+            </when>
+            <when expression="#[vars.httpMethod == 'POST' and vars.resourcePath == '/productLines']">
+                <flow-ref name="post-product-lines-subflow" doc:name="Route to POST /productLines"/>
+            </when>
+            <when expression="#[vars.httpMethod == 'POST' and vars.resourcePath == '/customers']">
+                <flow-ref name="post-customers-subflow" doc:name="Route to POST /customers"/>
+            </when>
+            <otherwise>
+                <set-variable variableName="responseStatus" value="404" doc:name="Set 404 status"/>
+                <set-payload value="#[{ message: 'Resource not found', resource: vars.resourcePath, method: vars.httpMethod }]" doc:name="Not found payload"/>
+            </otherwise>
+        </choice>
+        <set-attributes value="#[attributes ++ { statusCode: vars.responseStatus }]" doc:name="Apply status code"/>
+    </flow>
+
+    <sub-flow name="get-orders-subflow">
+        <logger level="INFO" doc:name="Log incoming request" message="GET /orders - query params: #[attributes.queryParams]"/>
+        <ee:transform doc:name="Build orders SOAP request">
+            <ee:message>
+                <ee:set-payload><![CDATA[
+%dw 2.0
+output application/xml
+ns soapenv http://schemas.xmlsoap.org/soap/envelope/
+ns ns1 urn:sqad:orders
+var rawOrders = attributes.queryParams.orders default null
+var queries = rawOrders match {
+    case arr if (arr is Array) -> arr
+    case null -> []
+    else -> [rawOrders]
+}
+---
+soapenv#Envelope: {
+    soapenv#Header: null,
+    soapenv#Body: {
+        ns1#dsOrderIntListQuery: (queries default []) map (orderNumber) -> {
+            ns1#ttOrderIntList: {
+                ns1#BusinessLine: "Progress",
+                ns1#TargetApp: "ORA",
+                ns1#Domain: "USA",
+                ns1#Entity: "100",
+                ns1#SalesOrder: orderNumber
+            }
+        }
+    }
+}
+                ]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <logger level="INFO" doc:name="Log SOAP request" message="SOAP request GET /orders: #[write(payload, 'application/xml')]"/>
+        <http:request doc:name="Call orders SOAP service" method="POST" config-ref="SOAP_HTTP_Request" path="${soap.orders.path}" sendBodyMode="ALWAYS">
+            <http:headers><![CDATA[#[{'Content-Type': 'text/xml; charset=utf-8'}]]]></http:headers>
+        </http:request>
+        <logger level="INFO" doc:name="Log SOAP response" message="SOAP response GET /orders: #[write(payload, 'application/xml')]" />
+        <ee:transform doc:name="Transform SOAP response to JSON">
+            <ee:message>
+                <ee:set-payload><![CDATA[
+%dw 2.0
+output application/json
+import stripNamespaces from dw::core::XML
+fun toArray(value) =
+    value match {
+        case arr if (arr is Array) -> arr
+        case null -> []
+        else -> [value]
+    }
+var xml = stripNamespaces(payload)
+var body = xml.Envelope.Body
+var rows = toArray(body.dsOrderIntListQueryResponse.ttOrderIntList)
+---
+{
+    orderRecords: rows map (item) -> {
+        businessLine: item.BusinessLine default null,
+        targetApp: item.TargetApp default null,
+        domain: item.Domain default null,
+        entity: item.Entity default null,
+        salesOrder: item.SalesOrder default null,
+        orderStatus: item.OrderStatus default null,
+        billingFrequency: item.BillingFrequency default null,
+        orderOid: item.OrderOID default null
+    }
+}
+                ]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <logger level="INFO" doc:name="Log JSON response" message="Response GET /orders: #[write(payload, 'application/json')]"/>
+    </sub-flow>
+
+    <sub-flow name="patch-orders-subflow">
+        <logger level="INFO" doc:name="Log incoming PATCH request" message="PATCH /orders - request payload: #[payload]"/>
+        <ee:transform doc:name="Ensure JSON payload">
+            <ee:message>
+                <ee:set-payload><![CDATA[
+%dw 2.0
+output application/json
+---
+(payload default {}) match {
+    case obj if (obj is Object) -> obj
+    case _ -> read(payload, "application/json")
+}
+                ]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <logger level="INFO" doc:name="Log parsed JSON payload" message="PATCH /orders - parsed payload: #[write(payload, 'application/json')]"/>
+        <ee:transform doc:name="Build update SOAP request">
+            <ee:message>
+                <ee:set-payload><![CDATA[
+%dw 2.0
+output application/xml
+ns soapenv http://schemas.xmlsoap.org/soap/envelope/
+ns ns1 urn:sqad:orders
+var record = payload default {}
+---
+soapenv#Envelope: {
+    soapenv#Header: null,
+    soapenv#Body: {
+        ns1#OrderUpdateRequest: {
+            ns1#OrderRecord: {
+                ns1#BusinessLine: record.businessLine default null,
+                ns1#TargetApp: record.targetApp default null,
+                ns1#Domain: record.domain default null,
+                ns1#Entity: record.entity default null,
+                ns1#SalesOrder: record.salesOrder default null,
+                ns1#OrderStatus: record.orderStatus default null,
+                ns1#BillingFrequency: record.billingFrequency default null,
+                ns1#OrderOID: record.orderOid default null,
+                ns1#ExclDomainList: record.exclDomainList default null,
+                ns1#MaxRows: record.maxRows default null
+            }
+        }
+    }
+}
+                ]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <logger level="INFO" doc:name="Log SOAP update request" message="SOAP request PATCH /orders: #[write(payload, 'application/xml')]"/>
+        <http:request doc:name="Call order update SOAP service" method="POST" config-ref="SOAP_HTTP_Request" path="${soap.orders.update.path}" sendBodyMode="ALWAYS">
+            <http:headers><![CDATA[#[{'Content-Type': 'text/xml; charset=utf-8'}]]]></http:headers>
+        </http:request>
+        <logger level="INFO" doc:name="Log SOAP update response" message="SOAP response PATCH /orders: #[write(payload, 'application/xml')]" />
+        <ee:transform doc:name="Transform update SOAP response to JSON">
+            <ee:message>
+                <ee:set-payload><![CDATA[
+%dw 2.0
+output application/json
+import stripNamespaces from dw::core::XML
+var xml = stripNamespaces(payload)
+var body = xml.Envelope.Body
+var status = body.OrderUpdateResponse.UpdateStatus default "SUCCESS"
+---
+{
+    orderUpdate: {
+        updateStatus: status
+    }
+}
+                ]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <logger level="INFO" doc:name="Log JSON update response" message="Response PATCH /orders: #[write(payload, 'application/json')]"/>
+    </sub-flow>
+
+    <sub-flow name="get-order-items-subflow">
+        <logger level="INFO" doc:name="Log incoming request" message="GET /orderItems - query params: #[attributes.queryParams]"/>
+        <ee:transform doc:name="Build order items SOAP request">
+            <ee:message>
+                <ee:set-payload><![CDATA[
+%dw 2.0
+output application/xml
+ns soapenv http://schemas.xmlsoap.org/soap/envelope/
+ns ns1 urn:sqad:orders
+var orderNumber = attributes.queryParams.orderNumber default ""
+---
+soapenv#Envelope: {
+    soapenv#Header: null,
+    soapenv#Body: {
+        ns1#OrderItemsQuery: {
+            ns1#OrderNumber: orderNumber
+        }
+    }
+}
+                ]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <logger level="INFO" doc:name="Log SOAP request" message="SOAP request GET /orderItems: #[write(payload, 'application/xml')]"/>
+        <http:request doc:name="Call order items SOAP service" method="POST" config-ref="SOAP_HTTP_Request" path="${soap.orderItems.path}" sendBodyMode="ALWAYS">
+            <http:headers><![CDATA[#[{'Content-Type': 'text/xml; charset=utf-8'}]]]></http:headers>
+        </http:request>
+        <logger level="INFO" doc:name="Log SOAP response" message="SOAP response GET /orderItems: #[write(payload, 'application/xml')]" />
+        <ee:transform doc:name="Transform order items SOAP response to JSON">
+            <ee:message>
+                <ee:set-payload><![CDATA[
+%dw 2.0
+output application/json
+import stripNamespaces from dw::core::XML
+fun toArray(value) =
+    value match {
+        case arr if (arr is Array) -> arr
+        case null -> []
+        else -> [value]
+    }
+var xml = stripNamespaces(payload)
+var body = xml.Envelope.Body
+var rows = toArray(body.OrderItemsQueryResponse.ttOrderItemList)
+---
+{
+    orderRecords: rows map (item) -> {
+        businessLine: item.BusinessLine default null,
+        targetApp: item.TargetApp default null,
+        domain: item.Domain default null,
+        entity: item.Entity default null,
+        salesOrder: item.SalesOrder default null,
+        orderStatus: item.OrderStatus default null,
+        billingFrequency: item.BillingFrequency default null,
+        orderOid: item.OrderOID default null
+    }
+}
+                ]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <logger level="INFO" doc:name="Log JSON response" message="Response GET /orderItems: #[write(payload, 'application/json')]"/>
+    </sub-flow>
+
+    <sub-flow name="post-product-lines-subflow">
+        <logger level="INFO" doc:name="Log incoming request" message="POST /productLines - request payload: #[payload]"/>
+        <ee:transform doc:name="Ensure JSON payload">
+            <ee:message>
+                <ee:set-payload><![CDATA[
+%dw 2.0
+output application/json
+---
+(payload default {}) match {
+    case obj if (obj is Object) -> obj
+    case _ -> read(payload, "application/json")
+}
+                ]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <logger level="INFO" doc:name="Log parsed JSON payload" message="POST /productLines - parsed payload: #[write(payload, 'application/json')]"/>
+        <ee:transform doc:name="Build product lines SOAP request">
+            <ee:message>
+                <ee:set-payload><![CDATA[
+%dw 2.0
+output application/xml
+ns soapenv http://schemas.xmlsoap.org/soap/envelope/
+ns ns1 urn:sqad:codes
+var requests = payload.queryRequests default []
+---
+soapenv#Envelope: {
+    soapenv#Header: null,
+    soapenv#Body: {
+        ns1#ProductLineQueryRequest: {
+            (requests map (item) -> {
+                ns1#QueryRequest: {
+                    ns1#SourceApplication: item.sourceApplication default null,
+                    ns1#Profile: item.profile default null,
+                    ns1#Filter: item.filter default null,
+                    ns1#MaxRows: item.maxRows default null,
+                    ns1#IgnoreBoFilter: item.ignoreBoFilter default null,
+                    ns1#IgnoreBoInnerJoin: item.ignoreBoInnerJoin default null
+                }
+            })
+        }
+    }
+}
+                ]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <logger level="INFO" doc:name="Log SOAP request" message="SOAP request POST /productLines: #[write(payload, 'application/xml')]"/>
+        <http:request doc:name="Call product lines SOAP service" method="POST" config-ref="SOAP_HTTP_Request" path="${soap.productLines.path}" sendBodyMode="ALWAYS">
+            <http:headers><![CDATA[#[{'Content-Type': 'text/xml; charset=utf-8'}]]]></http:headers>
+        </http:request>
+        <logger level="INFO" doc:name="Log SOAP response" message="SOAP response POST /productLines: #[write(payload, 'application/xml')]" />
+        <ee:transform doc:name="Transform product lines SOAP response to JSON">
+            <ee:message>
+                <ee:set-payload><![CDATA[
+%dw 2.0
+output application/json
+import stripNamespaces from dw::core::XML
+fun toArray(value) =
+    value match {
+        case arr if (arr is Array) -> arr
+        case null -> []
+        else -> [value]
+    }
+var xml = stripNamespaces(payload)
+var body = xml.Envelope.Body
+var codes = toArray(body.ProductLineQueryResponse.CodeMasterList.CodeMaster)
+---
+{
+    codeMasters: codes map (item) -> {
+        codeCmmt: item.CodeCmmt default null,
+        codeDesc: item.CodeDesc default null,
+        codeDomain: item.CodeDomain default null,
+        codeFldname: item.CodeFldname default null,
+        codeValue: item.CodeValue default null
+    }
+}
+                ]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <logger level="INFO" doc:name="Log JSON response" message="Response POST /productLines: #[write(payload, 'application/json')]"/>
+    </sub-flow>
+
+    <sub-flow name="post-customers-subflow">
+        <logger level="INFO" doc:name="Log incoming request" message="POST /customers - request payload: #[payload]"/>
+        <ee:transform doc:name="Ensure JSON payload">
+            <ee:message>
+                <ee:set-payload><![CDATA[
+%dw 2.0
+output application/json
+---
+(payload default {}) match {
+    case obj if (obj is Object) -> obj
+    case _ -> read(payload, "application/json")
+}
+                ]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <logger level="INFO" doc:name="Log parsed JSON payload" message="POST /customers - parsed payload: #[write(payload, 'application/json')]"/>
+        <ee:transform doc:name="Build customers SOAP request">
+            <ee:message>
+                <ee:set-payload><![CDATA[
+%dw 2.0
+output application/xml
+ns soapenv http://schemas.xmlsoap.org/soap/envelope/
+ns ns1 urn:sqad:customers
+var requests = payload.queryRequests default []
+---
+soapenv#Envelope: {
+    soapenv#Header: null,
+    soapenv#Body: {
+        ns1#CustomerQueryRequest: {
+            (requests map (item) -> {
+                ns1#QueryRequest: {
+                    ns1#SourceApplication: item.sourceApplication default null,
+                    ns1#Profile: item.profile default null,
+                    ns1#Filter: item.filter default null,
+                    ns1#MaxRows: item.maxRows default null,
+                    ns1#IgnoreBoFilter: item.ignoreBoFilter default null,
+                    ns1#IgnoreBoInnerJoin: item.ignoreBoInnerJoin default null
+                }
+            })
+        }
+    }
+}
+                ]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <logger level="INFO" doc:name="Log SOAP request" message="SOAP request POST /customers: #[write(payload, 'application/xml')]"/>
+        <http:request doc:name="Call customers SOAP service" method="POST" config-ref="SOAP_HTTP_Request" path="${soap.customers.path}" sendBodyMode="ALWAYS">
+            <http:headers><![CDATA[#[{'Content-Type': 'text/xml; charset=utf-8'}]]]></http:headers>
+        </http:request>
+        <logger level="INFO" doc:name="Log SOAP response" message="SOAP response POST /customers: #[write(payload, 'application/xml')]" />
+        <ee:transform doc:name="Transform customers SOAP response to JSON">
+            <ee:message>
+                <ee:set-payload><![CDATA[
+%dw 2.0
+output application/json
+import stripNamespaces from dw::core::XML
+fun toArray(value) =
+    value match {
+        case arr if (arr is Array) -> arr
+        case null -> []
+        else -> [value]
+    }
+var xml = stripNamespaces(payload)
+var body = xml.Envelope.Body
+var customers = toArray(body.CustomerQueryResponse.CustomerList.Customer)
+---
+{
+    customers: customers map (item) -> {
+        cmAddr: item.CmAddr default null,
+        cmDomain: item.CmDomain default null,
+        cmActive: (item.CmActive default null) as Boolean?,
+        cmChannel: item.CmChannel default null,
+        cmClass: item.CmClass default null,
+        addresses: toArray(item.Addresses.Address) map (address) -> {
+            adAddr: address.AdAddr default null,
+            adCity: address.AdCity default null,
+            adCountry: address.AdCountry default null,
+            addressLines: toArray(address.AddressLines.AddressLine) map (line) -> {
+                addressId: line.AddressId default null,
+                addressName: line.AddressName default null,
+                contacts: toArray(line.Contacts.Contact) map (contact) -> {
+                    contactId: contact.ContactId default null,
+                    contactName: contact.ContactName default null,
+                    contactEmail: contact.ContactEmail default null
+                }
+            }
+        },
+        codeMasters: toArray(item.CodeMasters.CodeMaster) map (code) -> {
+            codeDomain: code.CodeDomain default null,
+            codeFldname: code.CodeFldname default null,
+            codeValue: code.CodeValue default null
+        },
+        debtors: toArray(item.Debtors.Debtor) map (debtor) -> {
+            debtorId: debtor.DebtorId default null,
+            debtorCode: debtor.DebtorCode default null,
+            debtorFixedCredLimtC: debtor.DebtorFixedCredLimtC default null
+        },
+        internalRepresentatives: toArray(item.InternalRepresentatives.InternalRepresentative) map (rep) -> {
+            irlAddr: rep.IrlAddr default null,
+            irlEmp: rep.IrlEmp default null,
+            irlType: rep.IrlType default null
+        }
+    }
+}
+                ]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <logger level="INFO" doc:name="Log JSON response" message="Response POST /customers: #[write(payload, 'application/json')]"/>
+    </sub-flow>
+
+</mule>
