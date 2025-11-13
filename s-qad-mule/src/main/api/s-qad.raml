@@ -1,8 +1,8 @@
-#%RAML 1.0
+%RAML 1.0
 title: s-qad Orders API
 version: v1
-baseUri: https://api.example.com/s-qad
-protocols: [ HTTPS ]
+baseUri: http://localhost:8081/s-qad
+protocols: [ HTTP ]
 mediaType: application/json
 
 types:
@@ -17,18 +17,30 @@ types:
     description: Order integration record derived from the TtOrderIntInputType definition.
     type: object
     properties:
+      businessLine?:
+        type: string
+        description: Business line associated with the order.
       targetApp?:
         type: string
         description: Target application identifier.
       domain?:
         type: string
         description: Business domain code.
+      entity?:
+        type: string
+        description: Entity identifier associated with the order.
       orderStatus?:
         type: string
         description: Current status of the sales order.
       salesOrder?:
         type: string
         description: Sales order identifier.
+      billingFrequency?:
+        type: string
+        description: Billing frequency for the order.
+      orderOid?:
+        type: string
+        description: Unique order object identifier.
       exclDomainList?:
         type: string
         description: Comma-delimited list of domains to exclude.
@@ -118,88 +130,16 @@ types:
     description: Customer record derived from the CustomerResponseType definition.
     type: object
     properties:
-      cmChr06?:
-        type: string
-      cmChr10?:
-        type: string
-      cmQad06?:
-        type: boolean
-      cmActive?:
-        type: boolean
       cmAddr?:
         type: string
-      cmAutorenew?:
-        type: boolean
-      cmBtbCr?:
-        type: boolean
-      cmBtbMthd?:
-        type: boolean
-      cmBtbType?:
+      cmDomain?:
         type: string
+      cmActive?:
+        type: boolean
       cmChannel?:
         type: string
       cmClass?:
         type: string
-      cmCrHold?:
-        type: boolean
-      cmCrTerms?:
-        type: string
-      cmCurr?:
-        type: string
-      cmDatacomplete?:
-        type: boolean
-      cmDaybookset?:
-        type: string
-      cmDiscPct?:
-        type: number
-        format: double
-      cmDomain?:
-        type: string
-      cmFixPr?:
-        type: boolean
-      cmFrList?:
-        type: string
-      cmFrMinWt?:
-        type: number
-        format: double
-      cmFrTerms?:
-        type: string
-      cmIndustry?:
-        type: string
-      cmModDate?:
-        type: date-only
-      cmPartial?:
-        type: boolean
-      cmPoReqd?:
-        type: boolean
-      cmPrList?:
-        type: string
-      cmRegion?:
-        type: string
-      cmResale?:
-        type: string
-      cmRmks?:
-        type: string
-      cmRssCalOption?:
-        type: integer
-      cmShipLt?:
-        type: integer
-      cmShipvia?:
-        type: string
-      cmSic?:
-        type: string
-      cmSite?:
-        type: string
-      cmSlspsn?:
-        type: string
-      cmUserid?:
-        type: string
-      oidBtrMstr?:
-        type: number
-        format: double
-      oidCmMstr?:
-        type: number
-        format: double
       addresses?:
         type: address[]
       codeMasters?:
@@ -214,53 +154,12 @@ types:
     properties:
       adAddr?:
         type: string
-      adAddressId?:
-        type: integer
-      adBusRelation?:
-        type: string
       adCity?:
         type: string
       adCountry?:
         type: string
-      adCtry?:
-        type: string
-      adDomain?:
-        type: string
-      adEmail?:
-        type: string
-      adFax?:
-        type: string
-      adLine1?:
-        type: string
-      adLine2?:
-        type: string
-      adLine3?:
-        type: string
-      adModDate?:
-        type: date-only
-      adName?:
-        type: string
-      adNsPrList?:
-        type: string
-      adPhone?:
-        type: string
-      adPstId?:
-        type: string
-      adSort?:
-        type: string
-      adState?:
-        type: string
-      adUserid?:
-        type: string
-      adZip?:
-        type: string
-      oidAdMstr?:
-        type: number
-        format: double
       addressLines?:
         type: addressLine[]
-      countries?:
-        type: country[]
   addressLine:
     description: Address line record derived from the Address1ResponseType definition.
     type: object
@@ -275,33 +174,11 @@ types:
     description: Contact record derived from the ContactResponseType definition.
     type: object
     properties:
-      addressId?:
-        type: integer
       contactId?:
         type: integer
-      contactEmail?:
-        type: string
-      contactFax?:
-        type: string
-      contactFunction?:
-        type: string
-      contactGender?:
-        type: string
-      contactInitials?:
-        type: string
-      contactIsPrimary?:
-        type: boolean
-      contactIsSecondary?:
-        type: boolean
-      contactMobilePhone?:
-        type: string
       contactName?:
         type: string
-      contactTelephone?:
-        type: string
-      contactTitle?:
-        type: string
-      customShort0?:
+      contactEmail?:
         type: string
   country:
     description: Country record derived from the CountryResponseType definition.
@@ -317,33 +194,16 @@ types:
     description: Customer code master record derived from the Code_mstrResponseType definition.
     type: object
     properties:
-      codeQadc01?:
-        type: string
-      codeCmmt?:
-        type: string
-      codeDesc?:
-        type: string
       codeDomain?:
         type: string
       codeFldname?:
         type: string
-      codeUser1?:
-        type: string
-      codeUser2?:
-        type: string
       codeValue?:
         type: string
-      oidCodeMstr?:
-        type: number
-        format: double
   debtor:
     description: Debtor record derived from the DebtorResponseType definition.
     type: object
     properties:
-      customShort4?:
-        type: string
-      customShort5?:
-        type: string
       debtorId?:
         type: integer
       debtorCode?:
@@ -355,39 +215,12 @@ types:
     description: Internal representative record derived from the InternalRepresentativesResponseType definition.
     type: object
     properties:
-      irlQadc01?:
-        type: string
-      irlQadc02?:
-        type: string
       irlAddr?:
-        type: string
-      irlDomain?:
         type: string
       irlEmp?:
         type: string
-      irlEnd?:
-        type: date-only
-      irlLsType?:
-        type: string
-      irlModDate?:
-        type: date-only
-      irlModUserid?:
-        type: string
-      irlPrimary?:
-        type: boolean
-      irlSecondary?:
-        type: boolean
-      irlStart?:
-        type: date-only
       irlType?:
         type: string
-      irlUser1?:
-        type: string
-      irlUser2?:
-        type: string
-      oidIrlDet?:
-        type: number
-        format: double
 
 /orders:
   get:
@@ -421,31 +254,6 @@ types:
                   salesOrder: SO67890
                   exclDomainList: DOMC
                   maxRows: 50
-  /orderItems:
-    get:
-      description: Retrieve order items for a specific sales order.
-      queryParameters:
-        orderNumber:
-          displayName: Order Number
-          description: Identifier of the sales order whose items are requested.
-          type: string
-          required: true
-      responses:
-        200:
-          description: Order items retrieved successfully.
-          body:
-            application/json:
-              type: orderQueryResponse
-              example:
-                orderRecords:
-                  - businessLine: Progress
-                    targetApp: ORA
-                    domain: USA
-                    entity: "100"
-                    salesOrder: M1152602
-                    orderStatus: SENT
-                    billingFrequency: Once
-                    orderOid: 202105031344991719.0009
   patch:
     description: Update an existing order integration record.
     body:
@@ -467,6 +275,31 @@ types:
             example:
               orderUpdate:
                 updateStatus: Record updated successfully
+/orderItems:
+  get:
+    description: Retrieve order items for a specific sales order.
+    queryParameters:
+      orderNumber:
+        displayName: Order Number
+        description: Identifier of the sales order whose items are requested.
+        type: string
+        required: true
+    responses:
+      200:
+        description: Order items retrieved successfully.
+        body:
+          application/json:
+            type: orderQueryResponse
+            example:
+              orderRecords:
+                - businessLine: Progress
+                  targetApp: ORA
+                  domain: USA
+                  entity: "100"
+                  salesOrder: M1152602
+                  orderStatus: SENT
+                  billingFrequency: Once
+                  orderOid: 202105031344991719.0009
 /productLines:
   post:
     description: Fetch product lines
@@ -544,4 +377,3 @@ types:
                     - irlAddr: CUST001
                       irlEmp: EMP100
                       irlType: AccountManager
-
